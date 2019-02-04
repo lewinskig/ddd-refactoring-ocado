@@ -38,12 +38,17 @@ public class ShortageFinderACL {
      */
     public static List<ShortageEntity> findShortages(LocalDate today, int daysAhead, CurrentStock stock,
                                                      List<ProductionEntity> productions, List<DemandEntity> demands) {
+
+        List<ShortageEntity> oldModel = ShortageFinder.findShortages(today, daysAhead, stock, productions, demands);
+
+        // if (calcualte with new model)
         ShortageCalculatorFactory factory = new ShortageCalculatorFactory(today, daysAhead, stock, productions, demands);
         ShortageCalculator calculator = factory.create();
 
-        List<ShortageEntity> shortages = calculator.findShortages();
+        List<ShortageEntity> newModel = calculator.findShortages();
 
-        return shortages;
+        // compare calculations
+        return oldModel;
     }
 
     private ShortageFinderACL() {
