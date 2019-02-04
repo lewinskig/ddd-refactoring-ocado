@@ -3,6 +3,7 @@ package services.impl;
 import api.PlanViewDto;
 import api.PlannerService;
 import dao.*;
+import demands.Util;
 import entities.FormEntity;
 import entities.LineEntity;
 import entities.ProductionEntity;
@@ -12,7 +13,6 @@ import external.JiraService;
 import external.NotificationsService;
 import external.StockService;
 import tools.ShortageFinder;
-import tools.Util;
 
 import java.time.Clock;
 import java.time.Duration;

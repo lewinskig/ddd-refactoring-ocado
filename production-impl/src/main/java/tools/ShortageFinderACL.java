@@ -1,16 +1,22 @@
 package tools;
 
+import demands.DemandReadModel;
+import demands.DemandReadModelDao;
 import entities.DemandEntity;
 import entities.FormEntity;
 import entities.ProductionEntity;
 import entities.ShortageEntity;
+import enums.DeliverySchema;
 import external.CurrentStock;
 import shortage.prediction.Demands;
+import shortage.prediction.LevelOnDeliveryPolicy;
 import shortage.prediction.Productions;
 import shortage.prediction.ShortageCalculator;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -111,19 +117,42 @@ public class ShortageFinderACL {
     }
 
     private static class DemandsProvider {
-        private final List<DemandEntity> demands;
+        private DemandReadModelDao demands;
+        private final Map<DeliverySchema, LevelOnDeliveryPolicy> mapping;
 
         public DemandsProvider(List<DemandEntity> demands) {
-            this.demands = demands;
+            mapping = init();
         }
 
+
         public Demands createDemands() {
-            Map<LocalDate, Demands.Demand> demands = this.demands.stream().collect(Collectors.toMap(
-                    demand -> demand.getDay(),
-                    demand -> new Demands.Demand(Util.getLevel(demand), Util.getDeliverySchema(demand))
+            List<DemandReadModel> entities = this.demands.findFrom(null, null);
+
+            Map<LocalDate, Demands.Demand> demands = entities
+                    .stream().collect(Collectors.toMap(
+                            readModel -> readModel.getDay(),
+                            readModel -> new Demands.Demand(
+                                    readModel.getLevel(),
+                                    pickVariant(readModel.getDeliverySchema()))
             ));
 
             return new Demands(demands);
         }
+
+
+        private LevelOnDeliveryPolicy pickVariant(DeliverySchema deliverySchema) {
+            return mapping.getOrDefault(deliverySchema, (level, demand1, produced) -> {
+                throw new NotImplementedException();
+            });
+        }
+
+        private Map<DeliverySchema, LevelOnDeliveryPolicy> init() {
+            Map<DeliverySchema, LevelOnDeliveryPolicy> mapping = new HashMap<>();
+            mapping.put(DeliverySchema.atDayStart, LevelOnDeliveryPolicy.AT_DAY_START);
+            mapping.put(DeliverySchema.tillEndOfDay, LevelOnDeliveryPolicy.TILL_END_OF_DAY);
+            return Collections.unmodifiableMap(mapping);
+        }
+
     }
+
 }
