@@ -1,6 +1,7 @@
 package tools;
 
 import entities.DemandEntity;
+import entities.FormEntity;
 import entities.ProductionEntity;
 import entities.ShortageEntity;
 import external.CurrentStock;
@@ -9,7 +10,10 @@ import shortage.prediction.Productions;
 import shortage.prediction.ShortageCalculator;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
@@ -59,15 +63,15 @@ public class ShortageFinderACL {
         private LocalDate today;
         private int daysAhead;
         private CurrentStock stock;
-        private List<ProductionEntity> productions;
-        private List<DemandEntity> demands;
+        private ProductionsProvider productions;
+        private DemandsProvider demands;
 
         public ShortageCalculatorFactory(LocalDate today, int daysAhead, CurrentStock stock, List<ProductionEntity> productions, List<DemandEntity> demands) {
             this.today = today;
             this.daysAhead = daysAhead;
             this.stock = stock;
-            this.productions = productions;
-            this.demands = demands;
+            this.productions = new ProductionsProvider(productions);
+            this.demands = new DemandsProvider(demands);
         }
 
         public ShortageCalculator create() {
@@ -75,10 +79,51 @@ public class ShortageFinderACL {
                     .limit(daysAhead)
                     .collect(toList());
 
-            Productions outputs = new Productions(productions);
-            Demands demandsPerDay = new Demands(demands);
+            Productions outputs = productions.createProductions();
+            Demands demandsPerDay = demands.createDemands();
 
             return new ShortageCalculator(stock, dates, outputs, demandsPerDay);
+        }
+
+        public static class ProductionsProvider {
+
+            private List<ProductionEntity> productions;
+
+            public ProductionsProvider(List<ProductionEntity> productions) {
+                this.productions = productions;
+            }
+
+            public Productions createProductions() {
+                String productRefNo = productions.stream()
+                        .map(ProductionEntity::getForm)
+                        .map(FormEntity::getRefNo)
+                        .findFirst()
+                        .orElse(null);
+                Map<LocalDate, Long> outputs = Collections.unmodifiableMap(productions.stream().collect(Collectors.toMap(
+                        production -> production.getStart().toLocalDate(),
+                        production -> production.getOutput(),
+                        (level1, level2) -> level1 + level2
+                )));
+
+                return new Productions(productRefNo, outputs);
+            }
+        }
+    }
+
+    private static class DemandsProvider {
+        private final List<DemandEntity> demands;
+
+        public DemandsProvider(List<DemandEntity> demands) {
+            this.demands = demands;
+        }
+
+        public Demands createDemands() {
+            Map<LocalDate, Demands.Demand> demands = this.demands.stream().collect(Collectors.toMap(
+                    demand -> demand.getDay(),
+                    demand -> new Demands.Demand(Util.getLevel(demand), Util.getDeliverySchema(demand))
+            ));
+
+            return new Demands(demands);
         }
     }
 }

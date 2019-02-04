@@ -8,6 +8,7 @@ import external.CurrentStock;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,7 +35,7 @@ public class ShortageFinder {
      * other stick to single schema per product. By manual adjustments of demand,
      * customer always specifies desired delivery schema
      * (increase amount in scheduled transport or organize extra transport at given time)
-     *
+     * <p>
      * TODO algorithm is finding wrong shortages, when more productions is planned in a single day
      */
     public static List<ShortageEntity> findShortages(LocalDate today, int daysAhead, CurrentStock stock,
@@ -44,9 +45,10 @@ public class ShortageFinder {
                 .collect(toList());
 
         String productRefNo = null;
-        HashMap<LocalDate, ProductionEntity> outputs = new HashMap<>();
+        HashMap<LocalDate, List<ProductionEntity>> outputs = new HashMap<>();
         for (ProductionEntity production : productions) {
-            outputs.put(production.getStart().toLocalDate(), production);
+            outputs.computeIfAbsent(production.getStart().toLocalDate(), key -> new ArrayList<>())
+                    .add(production);
             productRefNo = production.getForm().getRefNo();
         }
         HashMap<LocalDate, DemandEntity> demandsPerDay = new HashMap<>();
@@ -60,17 +62,16 @@ public class ShortageFinder {
         for (LocalDate day : dates) {
             DemandEntity demand = demandsPerDay.get(day);
             if (demand == null) {
-                ProductionEntity production = outputs.get(day);
-                if (production != null) {
+                List<ProductionEntity> productionss = outputs.get(day);
+                for (ProductionEntity production : productionss) {
                     level += production.getOutput();
                 }
                 continue;
             }
-            long produced = 0;
-            ProductionEntity production = outputs.get(day);
-            if (production != null) {
-                produced = production.getOutput();
-            }
+            List<ProductionEntity> production = outputs.get(day);
+            long produced = production.stream()
+                    .mapToLong(ProductionEntity::getOutput)
+                    .sum();
 
             long levelOnDelivery;
             if (Util.getDeliverySchema(demand) == DeliverySchema.atDayStart) {
